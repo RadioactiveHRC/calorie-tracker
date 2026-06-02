@@ -2,254 +2,257 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CalTrack — Lean Bulk Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="CalTrack" />
+  <meta name="theme-color" content="#0a0a0f" />
 
-  <!-- Google Fonts -->
+  <title>CalTrack</title>
+
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700;800&display=swap" rel="stylesheet" />
 
-  <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
-
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 
-  <!-- ===================== SIDEBAR NAV ===================== -->
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-logo">
-      <span class="logo-icon">⚡</span>
-      <span class="logo-text">CalTrack</span>
-    </div>
+  <!-- ══════════════════════════════════════════════
+       SCREEN: HOME (Dashboard)
+  ══════════════════════════════════════════════ -->
+  <div class="screen active" id="screen-home">
 
-    <nav class="sidebar-nav">
-      <button class="nav-btn active" data-view="dashboard">
-        <span class="nav-icon">◈</span> Dashboard
-      </button>
-      <button class="nav-btn" data-view="log">
-        <span class="nav-icon">✚</span> Log Food
-      </button>
-      <button class="nav-btn" data-view="history">
-        <span class="nav-icon">◷</span> Weekly History
-      </button>
-    </nav>
-
-    <div class="sidebar-date-section">
-      <label class="sidebar-label">Viewing date</label>
-      <input type="date" id="datePicker" class="date-input" />
-    </div>
-
-    <div class="sidebar-goal-info">
-      <div class="goal-chip">
-        <span class="goal-chip-label">Cal goal</span>
-        <span class="goal-chip-value" id="sideGoalCal">3,300</span>
+    <!-- Top bar -->
+    <header class="top-bar">
+      <div class="top-bar-left">
+        <p class="greeting" id="greeting">Good morning</p>
+        <h1 class="top-date" id="topDate">Today</h1>
       </div>
-      <div class="goal-chip">
-        <span class="goal-chip-label">Protein goal</span>
-        <span class="goal-chip-value" id="sideGoalPro">140g</span>
-      </div>
-    </div>
-  </aside>
+      <button class="icon-btn date-btn" id="dateTrigger" aria-label="Change date">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+      </button>
+    </header>
 
-  <!-- Mobile header -->
-  <header class="mobile-header">
-    <button class="hamburger" id="hamburger" aria-label="Toggle menu">
-      <span></span><span></span><span></span>
-    </button>
-    <span class="mobile-logo">⚡ CalTrack</span>
-    <div class="mobile-date" id="mobileDate"></div>
-  </header>
+    <div class="scroll-area">
 
-  <!-- Overlay for mobile sidebar -->
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
-
-  <!-- ===================== MAIN CONTENT ===================== -->
-  <main class="main-content">
-
-    <!-- ========== VIEW: DASHBOARD ========== -->
-    <section class="view active" id="view-dashboard">
-      <div class="view-header">
-        <div>
-          <h1 class="view-title">Daily Dashboard</h1>
-          <p class="view-subtitle" id="dashSubtitle">Loading…</p>
-        </div>
-        <button class="btn btn-primary" id="quickAddBtn">+ Quick Add</button>
-      </div>
-
-      <!-- Progress rings row -->
-      <div class="rings-row">
-        <!-- Calories ring -->
-        <div class="ring-card">
-          <div class="ring-wrapper">
-            <svg class="progress-ring" viewBox="0 0 120 120">
-              <circle class="ring-bg" cx="60" cy="60" r="50" />
-              <circle class="ring-fill" id="calRing" cx="60" cy="60" r="50"
-                stroke="#f59e0b" stroke-dasharray="314.16" stroke-dashoffset="314.16" />
+      <!-- Macro rings summary card -->
+      <div class="hero-card">
+        <!-- Calorie ring -->
+        <div class="macro-ring-group">
+          <div class="ring-shell" style="--ring-color: #f97316;">
+            <svg class="arc-svg" viewBox="0 0 100 100">
+              <circle class="arc-bg"   cx="50" cy="50" r="42"/>
+              <circle class="arc-fill" cx="50" cy="50" r="42" id="calArc"
+                stroke="#f97316" stroke-dasharray="263.89" stroke-dashoffset="263.89"/>
             </svg>
-            <div class="ring-center">
-              <span class="ring-value" id="calConsumed">0</span>
-              <span class="ring-unit">kcal</span>
+            <div class="ring-label-block">
+              <span class="ring-big"  id="calVal">0</span>
+              <span class="ring-sub">kcal</span>
             </div>
           </div>
-          <div class="ring-info">
-            <span class="ring-label">Calories</span>
-            <div class="ring-stats">
-              <span class="stat-item consumed">Consumed <strong id="calConsumedLabel">0</strong></span>
-              <span class="stat-item remaining">Remaining <strong id="calRemaining">3,300</strong></span>
-              <span class="stat-item goal">Goal <strong>3,300</strong></span>
-            </div>
-          </div>
+          <span class="ring-name">Calories</span>
+          <span class="ring-goal-line" id="calGoalLine">/ 3,300</span>
         </div>
+
+        <!-- Divider -->
+        <div class="hero-divider"></div>
 
         <!-- Protein ring -->
-        <div class="ring-card">
-          <div class="ring-wrapper">
-            <svg class="progress-ring" viewBox="0 0 120 120">
-              <circle class="ring-bg" cx="60" cy="60" r="50" />
-              <circle class="ring-fill" id="proRing" cx="60" cy="60" r="50"
-                stroke="#6366f1" stroke-dasharray="314.16" stroke-dashoffset="314.16" />
+        <div class="macro-ring-group">
+          <div class="ring-shell" style="--ring-color: #818cf8;">
+            <svg class="arc-svg" viewBox="0 0 100 100">
+              <circle class="arc-bg"   cx="50" cy="50" r="42"/>
+              <circle class="arc-fill" cx="50" cy="50" r="42" id="proArc"
+                stroke="#818cf8" stroke-dasharray="263.89" stroke-dashoffset="263.89"/>
             </svg>
-            <div class="ring-center">
-              <span class="ring-value" id="proConsumed">0</span>
-              <span class="ring-unit">g</span>
+            <div class="ring-label-block">
+              <span class="ring-big"  id="proVal">0</span>
+              <span class="ring-sub">g</span>
             </div>
           </div>
-          <div class="ring-info">
-            <span class="ring-label">Protein</span>
-            <div class="ring-stats">
-              <span class="stat-item consumed">Consumed <strong id="proConsumedLabel">0g</strong></span>
-              <span class="stat-item remaining">Remaining <strong id="proRemaining">140g</strong></span>
-              <span class="stat-item goal">Goal <strong>140g</strong></span>
-            </div>
-          </div>
+          <span class="ring-name">Protein</span>
+          <span class="ring-goal-line" id="proGoalLine">/ 140g</span>
         </div>
       </div>
 
-      <!-- Today's meals -->
-      <div class="section-header">
-        <h2 class="section-title">Today's Meals</h2>
-        <span class="meal-count-badge" id="mealCount">0 items</span>
-      </div>
-
-      <div class="meal-list" id="dashMealList">
-        <div class="empty-state" id="dashEmptyState">
-          <div class="empty-icon">🍽️</div>
-          <p>No meals logged yet.</p>
-          <p class="empty-sub">Head to <strong>Log Food</strong> to start tracking.</p>
+      <!-- Remaining pill row -->
+      <div class="pill-row">
+        <div class="pill-stat">
+          <span class="pill-val" id="calRemain">3,300</span>
+          <span class="pill-label">kcal left</span>
         </div>
-      </div>
-    </section>
-
-    <!-- ========== VIEW: LOG FOOD ========== -->
-    <section class="view" id="view-log">
-      <div class="view-header">
-        <div>
-          <h1 class="view-title">Log Food</h1>
-          <p class="view-subtitle" id="logSubtitle">Pick a preset or enter custom food</p>
+        <div class="pill-divider"></div>
+        <div class="pill-stat">
+          <span class="pill-val" id="proRemain">140g</span>
+          <span class="pill-label">protein left</span>
+        </div>
+        <div class="pill-divider"></div>
+        <div class="pill-stat">
+          <span class="pill-val" id="mealCountHome">0</span>
+          <span class="pill-label">meals</span>
         </div>
       </div>
 
-      <div class="log-grid">
-        <!-- Preset search -->
-        <div class="card preset-card">
-          <h3 class="card-title">🍛 Food Presets</h3>
-          <input type="text" id="presetSearch" class="text-input" placeholder="Search South Indian foods…" />
-          <div class="preset-list" id="presetList"></div>
-        </div>
+      <!-- Today's log -->
+      <div class="section-hdr">
+        <span class="section-title">Today's Log</span>
+        <button class="text-btn" id="homeAddBtn">+ Add</button>
+      </div>
 
-        <!-- Custom entry form -->
-        <div class="card form-card">
-          <h3 class="card-title" id="formTitle">✏️ Custom Entry</h3>
-          <form id="foodForm" novalidate>
-            <input type="hidden" id="editId" />
-
-            <div class="form-group">
-              <label class="form-label">Food Name</label>
-              <input type="text" id="foodName" class="text-input" placeholder="e.g. Chicken Biryani" required />
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label class="form-label">Calories (kcal)</label>
-                <input type="number" id="foodCal" class="text-input" placeholder="490" min="0" required />
-              </div>
-              <div class="form-group">
-                <label class="form-label">Protein (g)</label>
-                <input type="number" id="foodPro" class="text-input" placeholder="32" min="0" step="0.1" required />
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Category</label>
-              <select id="foodCat" class="text-input select-input">
-                <option value="Breakfast">Breakfast</option>
-                <option value="Lunch" selected>Lunch</option>
-                <option value="Dinner">Dinner</option>
-                <option value="Snack">Snack</option>
-                <option value="Drink">Drink</option>
-              </select>
-            </div>
-
-            <p class="form-error" id="formError"></p>
-
-            <div class="form-actions">
-              <button type="submit" class="btn btn-primary" id="submitBtn">Add Meal</button>
-              <button type="button" class="btn btn-ghost" id="cancelEditBtn" style="display:none">Cancel</button>
-            </div>
-          </form>
+      <div class="entry-list" id="homeEntryList">
+        <div class="empty-block" id="homeEmpty">
+          <div class="empty-emoji">🍽</div>
+          <p class="empty-msg">No meals yet</p>
+          <p class="empty-hint">Tap <strong>Log</strong> below to start tracking</p>
         </div>
       </div>
 
-      <!-- Log for selected day -->
-      <div class="section-header" style="margin-top:2rem">
-        <h2 class="section-title">Logged for <span id="logDateLabel"></span></h2>
-      </div>
-      <div class="meal-list" id="logMealList">
-        <div class="empty-state" id="logEmptyState">
-          <div class="empty-icon">📋</div>
-          <p>Nothing logged yet for this day.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- ========== VIEW: WEEKLY HISTORY ========== -->
-    <section class="view" id="view-history">
-      <div class="view-header">
-        <div>
-          <h1 class="view-title">Weekly History</h1>
-          <p class="view-subtitle">Last 7 days at a glance</p>
-        </div>
-      </div>
-
-      <!-- Weekly summary cards -->
-      <div class="weekly-cards" id="weeklyCards"></div>
-
-      <!-- Chart -->
-      <div class="card chart-card">
-        <h3 class="card-title">📊 Calories & Protein — Last 7 Days</h3>
-        <div class="chart-container">
-          <canvas id="weeklyChart"></canvas>
-        </div>
-      </div>
-    </section>
-
-  </main>
-
-  <!-- ========== QUICK-ADD MODAL ========== -->
-  <div class="modal-backdrop" id="modalBackdrop">
-    <div class="modal" id="quickAddModal">
-      <div class="modal-header">
-        <h3>Quick Add</h3>
-        <button class="modal-close" id="modalClose">✕</button>
-      </div>
-      <input type="text" id="modalSearch" class="text-input" placeholder="Search presets…" />
-      <div class="preset-list modal-preset-list" id="modalPresetList"></div>
+      <div class="bottom-spacer"></div>
     </div>
   </div>
 
-  <!-- Data & logic -->
+  <!-- ══════════════════════════════════════════════
+       SCREEN: LOG
+  ══════════════════════════════════════════════ -->
+  <div class="screen" id="screen-log">
+    <header class="top-bar">
+      <h1 class="screen-title">Log Food</h1>
+      <span class="top-date-chip" id="logDateChip"></span>
+    </header>
+
+    <div class="scroll-area">
+
+      <!-- Quick-add form -->
+      <div class="form-card" id="entryForm">
+        <p class="form-card-label" id="formCardLabel">New Entry</p>
+        <input type="hidden" id="editId" />
+
+        <input type="text"   id="foodName" class="field" placeholder="Food name" />
+        <div class="field-row">
+          <input type="number" id="foodCal" class="field" placeholder="Calories" min="0" />
+          <input type="number" id="foodPro" class="field" placeholder="Protein (g)" min="0" step="0.1" />
+        </div>
+
+        <!-- Category pills -->
+        <div class="cat-pill-row" id="catPillRow">
+          <button class="cat-pill active" data-cat="Breakfast">Breakfast</button>
+          <button class="cat-pill" data-cat="Lunch">Lunch</button>
+          <button class="cat-pill" data-cat="Dinner">Dinner</button>
+          <button class="cat-pill" data-cat="Snack">Snack</button>
+          <button class="cat-pill" data-cat="Drink">Drink</button>
+        </div>
+
+        <p class="field-error" id="fieldError"></p>
+
+        <div class="form-btns">
+          <button class="btn-main" id="submitBtn">Add Meal</button>
+          <button class="btn-ghost" id="cancelEditBtn" style="display:none">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Presets -->
+      <div class="section-hdr" style="margin-top:1.25rem">
+        <span class="section-title">South Indian Presets</span>
+      </div>
+      <input type="text" id="presetSearch" class="field search-field" placeholder="Search presets…" />
+      <div class="entry-list preset-grid" id="presetList"></div>
+
+      <!-- Logged today -->
+      <div class="section-hdr" style="margin-top:1.5rem">
+        <span class="section-title">Logged Today</span>
+      </div>
+      <div class="entry-list" id="logEntryList">
+        <div class="empty-block" id="logEmpty">
+          <p class="empty-msg">Nothing logged</p>
+        </div>
+      </div>
+
+      <div class="bottom-spacer"></div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       SCREEN: WEEKLY
+  ══════════════════════════════════════════════ -->
+  <div class="screen" id="screen-weekly">
+    <header class="top-bar">
+      <h1 class="screen-title">Weekly</h1>
+    </header>
+
+    <div class="scroll-area">
+
+      <!-- 7-day strip -->
+      <div class="day-strip" id="dayStrip"></div>
+
+      <!-- Avg summary -->
+      <div class="avg-row" id="avgRow">
+        <div class="avg-card">
+          <span class="avg-val" id="avgCal">—</span>
+          <span class="avg-label">avg kcal/day</span>
+        </div>
+        <div class="avg-card">
+          <span class="avg-val" id="avgPro">—</span>
+          <span class="avg-label">avg protein/day</span>
+        </div>
+      </div>
+
+      <!-- Chart -->
+      <div class="chart-card">
+        <p class="chart-title">Calories & Protein — Last 7 Days</p>
+        <div class="chart-wrap">
+          <canvas id="weekChart"></canvas>
+        </div>
+      </div>
+
+      <div class="bottom-spacer"></div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       BOTTOM TAB BAR
+  ══════════════════════════════════════════════ -->
+  <nav class="tab-bar">
+    <button class="tab active" data-screen="home">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+      </svg>
+      <span class="tab-label">Home</span>
+    </button>
+
+    <button class="tab" data-screen="log">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      <span class="tab-label">Log</span>
+    </button>
+
+    <button class="tab" data-screen="weekly">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+      <span class="tab-label">Weekly</span>
+    </button>
+  </nav>
+
+  <!-- ══════════════════════════════════════════════
+       DATE PICKER SHEET
+  ══════════════════════════════════════════════ -->
+  <div class="sheet-backdrop" id="dateSheetBackdrop">
+    <div class="bottom-sheet" id="dateSheet">
+      <div class="sheet-handle"></div>
+      <p class="sheet-title">Select Date</p>
+      <input type="date" id="datePicker" class="field date-field" />
+      <button class="btn-main" id="dateConfirm">Confirm</button>
+    </div>
+  </div>
+
   <script src="data.js"></script>
   <script src="app.js"></script>
 </body>

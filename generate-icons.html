@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<!-- Helper: open this in a browser to generate PWA icons, then save them to /icons/ -->
+<html>
+<body>
+<script>
+function makeIcon(size) {
+  const c = document.createElement("canvas");
+  c.width = c.height = size;
+  const ctx = c.getContext("2d");
+
+  // Background
+  const bg = ctx.createLinearGradient(0, 0, size, size);
+  bg.addColorStop(0, "#1a1a2e");
+  bg.addColorStop(1, "#0a0a0f");
+  ctx.fillStyle = bg;
+  ctx.roundRect(0, 0, size, size, size * 0.22);
+  ctx.fill();
+
+  // Bolt emoji
+  ctx.font = `${size * 0.52}px serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("⚡", size / 2, size / 2);
+
+  return c.toDataURL("image/png");
+}
+
+[192, 512].forEach(sz => {
+  const a = document.createElement("a");
+  a.href = makeIcon(sz);
+  a.download = `icon-${sz}.png`;
+  a.textContent = `Download icon-${sz}.png`;
+  a.style.display = "block";
+  document.body.appendChild(a);
+});
+</script>
+</body>
+</html>

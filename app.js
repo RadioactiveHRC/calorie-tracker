@@ -1,339 +1,323 @@
 /* ============================================================
-   app.js — CalTrack UI logic
-   All data constants live in data.js (loaded before this file).
+   app.js — CalTrack · Gains-style PWA
+   Data constants live in data.js (loaded first).
    ============================================================ */
 
 // ── State ────────────────────────────────────────────────────
-let currentDate = todayStr();           // "YYYY-MM-DD"
-let editingId   = null;                 // ID of the entry being edited
-let weeklyChart = null;                 // Chart.js instance
+let currentDate  = todayStr();
+let editingId    = null;
+let selectedCat  = "Breakfast";
+let weeklyChart  = null;
 
-// ── Helpers ──────────────────────────────────────────────────
+// ── Utility ──────────────────────────────────────────────────
 function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function formatDate(str) {
-  // str = "YYYY-MM-DD"
-  const [y, m, d] = str.split("-");
-  const dt = new Date(y, m - 1, d);
-  return dt.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
-}
-
 function uid() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 }
 
-// ── LocalStorage helpers ─────────────────────────────────────
-function getLog(dateStr) {
-  // Returns array of meal entry objects for a given date
-  return JSON.parse(localStorage.getItem("ct_log_" + dateStr) || "[]");
+function fmtDate(str) {
+  const [y, m, d] = str.split("-");
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+    weekday: "long", month: "short", day: "numeric"
+  });
 }
 
-function saveLog(dateStr, entries) {
-  localStorage.setItem("ct_log_" + dateStr, JSON.stringify(entries));
+function shortDate(str) {
+  const [y, m, d] = str.split("-");
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function addEntry(dateStr, entry) {
-  const log = getLog(dateStr);
-  log.push(entry);
-  saveLog(dateStr, log);
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
 }
 
-function updateEntry(dateStr, id, updates) {
-  const log = getLog(dateStr);
-  const idx = log.findIndex(e => e.id === id);
-  if (idx !== -1) log[idx] = { ...log[idx], ...updates };
-  saveLog(dateStr, log);
+// ── Storage ───────────────────────────────────────────────────
+function getLog(date) {
+  return JSON.parse(localStorage.getItem("ct_" + date) || "[]");
 }
-
-function removeEntry(dateStr, id) {
-  const log = getLog(dateStr).filter(e => e.id !== id);
-  saveLog(dateStr, log);
+function saveLog(date, arr) {
+  localStorage.setItem("ct_" + date, JSON.stringify(arr));
 }
-
-// ── Totals ───────────────────────────────────────────────────
+function addEntry(date, entry)        { const l = getLog(date); l.push(entry); saveLog(date, l); }
+function removeEntry(date, id)        { saveLog(date, getLog(date).filter(e => e.id !== id)); }
+function updateEntry(date, id, patch) {
+  const l = getLog(date);
+  const i = l.findIndex(e => e.id === id);
+  if (i !== -1) l[i] = { ...l[i], ...patch };
+  saveLog(date, l);
+}
 function totals(entries) {
-  return entries.reduce(
-    (acc, e) => ({ cal: acc.cal + e.calories, pro: acc.pro + e.protein }),
-    { cal: 0, pro: 0 }
-  );
+  return entries.reduce((a, e) => ({ cal: a.cal + e.calories, pro: a.pro + e.protein }), { cal: 0, pro: 0 });
 }
 
-// ── Category badge ───────────────────────────────────────────
-function catBadge(cat) {
-  const color = CATEGORY_COLORS[cat] || "#888";
-  return `<span class="cat-badge" style="background:${color}">${cat}</span>`;
+// ── Arc ring animation ────────────────────────────────────────
+// r=42, circumference = 2π×42 ≈ 263.89
+const CIRC = 263.89;
+
+function setArc(id, value, goal) {
+  const el  = document.getElementById(id);
+  const pct = Math.min(value / goal, 1);
+  requestAnimationFrame(() => {
+    el.style.strokeDashoffset = CIRC - pct * CIRC;
+  });
 }
 
-// ── Build a meal card element ─────────────────────────────────
-function buildMealCard(entry, showActions = true) {
+// ── Category dot colour ───────────────────────────────────────
+function dotColor(cat) {
+  return CATEGORY_COLORS[cat] || "#888";
+}
+
+// ── Build entry card ──────────────────────────────────────────
+function buildEntryCard(entry) {
   const div = document.createElement("div");
-  div.className = "meal-card";
+  div.className = "entry-card";
   div.dataset.id = entry.id;
 
   div.innerHTML = `
-    ${catBadge(entry.category)}
-    <span class="meal-name">${entry.name}</span>
-    <div class="meal-macros">
-      <div class="macro-item">
-        <strong>${entry.calories}</strong>
-        <span>kcal</span>
-      </div>
-      <div class="macro-item">
-        <strong>${entry.protein}g</strong>
-        <span>protein</span>
-      </div>
+    <div class="entry-dot" style="background:${dotColor(entry.category)}"></div>
+    <span class="entry-name">${entry.name}</span>
+    <div class="entry-macros">
+      <span class="entry-cal">${entry.calories} kcal</span>
+      <span class="entry-pro">${entry.protein}g protein</span>
     </div>
-    ${showActions ? `
-    <div class="meal-actions">
-      <button class="btn-icon edit-btn" title="Edit">✏️</button>
-      <button class="btn-icon danger delete-btn" title="Remove">🗑</button>
-    </div>` : ""}
+    <div class="entry-actions">
+      <button class="icon-btn-sm edit-btn" title="Edit">✏️</button>
+      <button class="icon-btn-sm del del-btn" title="Delete">🗑</button>
+    </div>
   `;
 
-  if (showActions) {
-    div.querySelector(".edit-btn").addEventListener("click", () => startEdit(entry));
-    div.querySelector(".delete-btn").addEventListener("click", () => deleteEntry(entry.id));
-  }
-
+  div.querySelector(".edit-btn").addEventListener("click", () => beginEdit(entry));
+  div.querySelector(".del-btn").addEventListener("click",  () => deleteEntry(entry.id));
   return div;
 }
 
-// ── Render dashboard ─────────────────────────────────────────
-function renderDashboard() {
+// ── Render home screen ────────────────────────────────────────
+function renderHome() {
   const entries = getLog(currentDate);
-  const t = totals(entries);
+  const t       = totals(entries);
 
-  // Subtitle
-  document.getElementById("dashSubtitle").textContent = formatDate(currentDate);
+  // Top bar
+  document.getElementById("greeting").textContent = greeting();
+  document.getElementById("topDate").textContent  =
+    currentDate === todayStr() ? "Today" : shortDate(currentDate);
 
-  // Rings
-  animateRing("calRing", t.cal, GOALS.calories);
-  animateRing("proRing", t.pro, GOALS.protein);
+  // Arcs
+  setArc("calArc", t.cal, GOALS.calories);
+  setArc("proArc", t.pro, GOALS.protein);
 
-  // Ring labels
-  document.getElementById("calConsumed").textContent      = Math.round(t.cal);
-  document.getElementById("calConsumedLabel").textContent = Math.round(t.cal);
-  document.getElementById("calRemaining").textContent     = Math.max(0, GOALS.calories - Math.round(t.cal)).toLocaleString();
+  // Ring center values
+  document.getElementById("calVal").textContent = Math.round(t.cal);
+  document.getElementById("proVal").textContent = Math.round(t.pro);
 
-  document.getElementById("proConsumed").textContent      = Math.round(t.pro);
-  document.getElementById("proConsumedLabel").textContent = Math.round(t.pro) + "g";
-  document.getElementById("proRemaining").textContent     = Math.max(0, GOALS.protein - Math.round(t.pro)) + "g";
+  // Pill row
+  const calLeft = Math.max(0, GOALS.calories - Math.round(t.cal));
+  const proLeft = Math.max(0, GOALS.protein  - Math.round(t.pro));
+  document.getElementById("calRemain").textContent   = calLeft.toLocaleString();
+  document.getElementById("proRemain").textContent   = Math.round(proLeft) + "g";
+  document.getElementById("mealCountHome").textContent = entries.length;
 
-  // Meal list
-  const list      = document.getElementById("dashMealList");
-  const emptyState = document.getElementById("dashEmptyState");
-  list.innerHTML  = "";
+  // Colour remaining vals based on deficit
+  const calEl = document.getElementById("calRemain");
+  calEl.style.color = calLeft === 0 ? "var(--green)" : "var(--orange)";
 
-  document.getElementById("mealCount").textContent = `${entries.length} item${entries.length !== 1 ? "s" : ""}`;
-
-  if (entries.length === 0) {
-    list.appendChild(emptyState);
-    return;
-  }
-
-  entries.forEach(e => list.appendChild(buildMealCard(e)));
-}
-
-// ── Animate circular progress ring ───────────────────────────
-function animateRing(ringId, value, goal) {
-  const ring        = document.getElementById(ringId);
-  const circumference = 314.16; // 2π × 50
-  const pct         = Math.min(value / goal, 1);
-  const offset      = circumference - pct * circumference;
-
-  // Trigger after a tiny delay so CSS transition fires
-  requestAnimationFrame(() => {
-    ring.style.strokeDashoffset = offset;
-  });
-}
-
-// ── Render log view ──────────────────────────────────────────
-function renderLog() {
-  document.getElementById("logDateLabel").textContent = formatDate(currentDate);
-  document.getElementById("logSubtitle").textContent  = "Pick a preset or enter custom food";
-
-  const entries    = getLog(currentDate);
-  const list       = document.getElementById("logMealList");
-  const emptyState = document.getElementById("logEmptyState");
-  list.innerHTML   = "";
+  // Entry list
+  const list  = document.getElementById("homeEntryList");
+  const empty = document.getElementById("homeEmpty");
+  list.innerHTML = "";
 
   if (entries.length === 0) {
-    list.appendChild(emptyState);
+    list.appendChild(empty);
   } else {
-    entries.forEach(e => list.appendChild(buildMealCard(e)));
+    entries.forEach(e => list.appendChild(buildEntryCard(e)));
   }
 }
 
-// ── Render preset list ───────────────────────────────────────
-function renderPresets(query, containerId) {
-  const container = document.getElementById(containerId);
+// ── Render log screen ─────────────────────────────────────────
+function renderLogScreen() {
+  document.getElementById("logDateChip").textContent = fmtDate(currentDate);
+  renderLogList();
+  renderPresets("");
+}
+
+function renderLogList() {
+  const entries = getLog(currentDate);
+  const list    = document.getElementById("logEntryList");
+  const empty   = document.getElementById("logEmpty");
+  list.innerHTML = "";
+
+  if (entries.length === 0) {
+    list.appendChild(empty);
+  } else {
+    entries.forEach(e => list.appendChild(buildEntryCard(e)));
+  }
+}
+
+// ── Render presets ────────────────────────────────────────────
+function renderPresets(query) {
+  const container = document.getElementById("presetList");
   container.innerHTML = "";
-  const q = (query || "").toLowerCase().trim();
+  const q = query.toLowerCase().trim();
+  const items = q ? FOOD_PRESETS.filter(p => p.name.toLowerCase().includes(q)) : FOOD_PRESETS;
 
-  const filtered = q
-    ? FOOD_PRESETS.filter(p => p.name.toLowerCase().includes(q))
-    : FOOD_PRESETS;
-
-  if (filtered.length === 0) {
-    container.innerHTML = `<p style="color:var(--muted);font-size:.85rem;padding:.5rem">No matches found.</p>`;
+  if (items.length === 0) {
+    container.innerHTML = `<p style="color:var(--muted);font-size:.85rem;padding:.5rem 0">No matches.</p>`;
     return;
   }
 
-  filtered.forEach(preset => {
-    const item = document.createElement("div");
-    item.className = "preset-item";
-    item.innerHTML = `
-      <span class="preset-name">${preset.name}</span>
-      <span class="preset-meta">${preset.calories} kcal · ${preset.protein}g protein</span>
+  items.forEach(preset => {
+    const row = document.createElement("div");
+    row.className = "preset-row";
+    row.innerHTML = `
+      <div class="entry-dot" style="background:${dotColor(preset.category)}"></div>
+      <span class="preset-row-name">${preset.name}</span>
+      <span class="preset-row-meta">${preset.calories} kcal · ${preset.protein}g</span>
+      <span class="preset-add-icon">＋</span>
     `;
-    item.addEventListener("click", () => fillFormFromPreset(preset, containerId));
-    container.appendChild(item);
+    row.addEventListener("click", () => {
+      // Fill form with preset values
+      document.getElementById("foodName").value = preset.name;
+      document.getElementById("foodCal").value  = preset.calories;
+      document.getElementById("foodPro").value  = preset.protein;
+      selectCat(preset.category);
+      document.getElementById("fieldError").textContent = "";
+      document.getElementById("foodName").scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    container.appendChild(row);
   });
 }
 
-// ── Fill form from a preset click ───────────────────────────
-function fillFormFromPreset(preset, sourceId) {
-  document.getElementById("foodName").value = preset.name;
-  document.getElementById("foodCal").value  = preset.calories;
-  document.getElementById("foodPro").value  = preset.protein;
-  document.getElementById("foodCat").value  = preset.category;
-  document.getElementById("formError").textContent = "";
-
-  // If triggered from modal, close it and switch to log view
-  if (sourceId === "modalPresetList") {
-    closeModal();
-  }
-
-  showView("log");
-  document.getElementById("foodName").focus();
+// ── Category pill selection ───────────────────────────────────
+function selectCat(cat) {
+  selectedCat = cat;
+  document.querySelectorAll(".cat-pill").forEach(p => {
+    p.classList.toggle("active", p.dataset.cat === cat);
+  });
 }
 
-// ── Form submit (add / update) ────────────────────────────────
-function handleFormSubmit(e) {
-  e.preventDefault();
-  clearFormError();
-
+// ── Form submit ───────────────────────────────────────────────
+function handleSubmit() {
   const name     = document.getElementById("foodName").value.trim();
   const calories = parseFloat(document.getElementById("foodCal").value);
   const protein  = parseFloat(document.getElementById("foodPro").value);
-  const category = document.getElementById("foodCat").value;
+  const errEl    = document.getElementById("fieldError");
 
-  if (!name) return setFormError("Food name is required.");
-  if (isNaN(calories) || calories < 0) return setFormError("Enter a valid calorie amount.");
-  if (isNaN(protein)  || protein  < 0) return setFormError("Enter a valid protein amount.");
+  if (!name)                       { errEl.textContent = "Food name is required."; return; }
+  if (isNaN(calories) || calories < 0) { errEl.textContent = "Enter valid calories."; return; }
+  if (isNaN(protein)  || protein  < 0) { errEl.textContent = "Enter valid protein."; return; }
+  errEl.textContent = "";
 
   if (editingId) {
-    // Update existing entry
-    updateEntry(currentDate, editingId, { name, calories, protein, category });
-    cancelEdit();
+    updateEntry(currentDate, editingId, { name, calories, protein, category: selectedCat });
+    endEdit();
   } else {
-    addEntry(currentDate, { id: uid(), name, calories, protein, category, date: currentDate });
+    addEntry(currentDate, { id: uid(), name, calories, protein, category: selectedCat, date: currentDate });
+    resetForm();
   }
 
-  resetForm();
-  renderLog();
-  renderDashboard();
+  renderLogList();
+  renderHome();
 }
 
-function setFormError(msg)   { document.getElementById("formError").textContent = msg; }
-function clearFormError()    { document.getElementById("formError").textContent = ""; }
-
 function resetForm() {
-  document.getElementById("foodForm").reset();
   document.getElementById("foodName").value = "";
   document.getElementById("foodCal").value  = "";
   document.getElementById("foodPro").value  = "";
-  document.getElementById("formTitle").textContent = "✏️ Custom Entry";
-  document.getElementById("submitBtn").textContent = "Add Meal";
+  document.getElementById("fieldError").textContent = "";
+  document.getElementById("formCardLabel").textContent = "New Entry";
+  document.getElementById("submitBtn").textContent    = "Add Meal";
   document.getElementById("cancelEditBtn").style.display = "none";
+  selectCat("Breakfast");
   editingId = null;
 }
 
-// ── Edit ─────────────────────────────────────────────────────
-function startEdit(entry) {
+// ── Edit ──────────────────────────────────────────────────────
+function beginEdit(entry) {
   editingId = entry.id;
   document.getElementById("foodName").value = entry.name;
   document.getElementById("foodCal").value  = entry.calories;
   document.getElementById("foodPro").value  = entry.protein;
-  document.getElementById("foodCat").value  = entry.category;
-  document.getElementById("formTitle").textContent    = "✏️ Edit Entry";
-  document.getElementById("submitBtn").textContent    = "Save Changes";
-  document.getElementById("cancelEditBtn").style.display = "inline-flex";
-  showView("log");
-  document.getElementById("foodName").scrollIntoView({ behavior: "smooth", block: "center" });
-  document.getElementById("foodName").focus();
+  selectCat(entry.category);
+  document.getElementById("formCardLabel").textContent    = "Edit Entry";
+  document.getElementById("submitBtn").textContent        = "Save Changes";
+  document.getElementById("cancelEditBtn").style.display  = "block";
+  // Switch to log screen and scroll to form
+  showScreen("log");
+  document.getElementById("entryForm").scrollIntoView({ behavior: "smooth" });
 }
 
-function cancelEdit() {
+function endEdit() {
   editingId = null;
   resetForm();
 }
 
 // ── Delete ────────────────────────────────────────────────────
 function deleteEntry(id) {
-  const card = document.querySelector(`.meal-card[data-id="${id}"]`);
-  if (card) {
-    card.classList.add("removing");
-    card.addEventListener("animationend", () => {
-      removeEntry(currentDate, id);
-      renderLog();
-      renderDashboard();
-    }, { once: true });
-  } else {
+  // Animate both copies of the card (home + log lists)
+  document.querySelectorAll(`.entry-card[data-id="${id}"]`).forEach(card => {
+    card.classList.add("out");
+  });
+  setTimeout(() => {
     removeEntry(currentDate, id);
-    renderLog();
-    renderDashboard();
-  }
+    renderHome();
+    renderLogList();
+  }, 220);
 }
 
-// ── Weekly history ────────────────────────────────────────────
+// ── Weekly screen ─────────────────────────────────────────────
 function renderWeekly() {
-  // Build last 7 days array ending with currentDate
-  const days = [];
+  const today = todayStr();
+  const days  = [];
   for (let i = 6; i >= 0; i--) {
-    const d  = new Date(currentDate);
+    const d = new Date(today);
     d.setDate(d.getDate() - i);
     days.push(d.toISOString().slice(0, 10));
   }
 
-  // Cards
-  const container = document.getElementById("weeklyCards");
-  container.innerHTML = "";
-
+  // Day strip
+  const strip = document.getElementById("dayStrip");
+  strip.innerHTML = "";
   const labels = [], calData = [], proData = [];
+
+  let totalCal = 0, totalPro = 0, activeDays = 0;
 
   days.forEach(ds => {
     const entries = getLog(ds);
-    const t       = totals(entries);
+    const t = totals(entries);
     const [y, m, d] = ds.split("-");
-    const dt      = new Date(y, m - 1, d);
-    const dayName = WEEK_DAYS[dt.getDay()];
-    const isToday = ds === todayStr();
+    const dt = new Date(y, m - 1, d);
+    const dayNames = ["Su","Mo","Tu","We","Th","Fr","Sa"];
 
-    const card = document.createElement("div");
-    card.className = "week-day-card" + (isToday ? " today" : "");
-    card.innerHTML = `
-      <div class="wdc-day">${dayName}</div>
-      <div class="wdc-date">${dt.getDate()}/${dt.getMonth() + 1}</div>
-      <div class="wdc-cal">${Math.round(t.cal)}</div>
-      <div class="wdc-label">kcal</div>
-      <div class="wdc-pro">${Math.round(t.pro)}g</div>
-      <div class="wdc-label">protein</div>
+    if (t.cal > 0) { totalCal += t.cal; totalPro += t.pro; activeDays++; }
+
+    const tile = document.createElement("div");
+    tile.className = "day-tile" + (ds === today ? " today" : "");
+    tile.innerHTML = `
+      <span class="day-tile-name">${dayNames[dt.getDay()]}</span>
+      <span class="day-tile-date">${dt.getDate()}</span>
+      <span class="day-tile-cal">${t.cal > 0 ? Math.round(t.cal) : "—"}</span>
+      <span class="day-tile-pro">${t.pro > 0 ? Math.round(t.pro)+"g" : ""}</span>
     `;
-    container.appendChild(card);
+    strip.appendChild(tile);
 
-    labels.push(dayName + " " + dt.getDate());
+    labels.push(dayNames[dt.getDay()]);
     calData.push(Math.round(t.cal));
     proData.push(Math.round(t.pro));
   });
 
-  // Destroy old chart before recreating
+  // Averages
+  document.getElementById("avgCal").textContent = activeDays ? Math.round(totalCal / activeDays).toLocaleString() : "—";
+  document.getElementById("avgPro").textContent = activeDays ? Math.round(totalPro / activeDays) + "g" : "—";
+
+  // Chart
   if (weeklyChart) { weeklyChart.destroy(); weeklyChart = null; }
 
-  const ctx = document.getElementById("weeklyChart").getContext("2d");
-
+  const ctx = document.getElementById("weekChart").getContext("2d");
   weeklyChart = new Chart(ctx, {
     type: "bar",
     data: {
@@ -342,168 +326,140 @@ function renderWeekly() {
         {
           label: "Calories",
           data: calData,
-          backgroundColor: "rgba(245,158,11,0.7)",
-          borderColor: "#f59e0b",
-          borderWidth: 1.5,
+          backgroundColor: "rgba(249,115,22,0.65)",
+          borderColor: "#f97316",
+          borderWidth: 0,
           borderRadius: 6,
           yAxisID: "y",
         },
         {
           label: "Protein (g)",
           data: proData,
-          backgroundColor: "rgba(99,102,241,0.7)",
-          borderColor: "#6366f1",
-          borderWidth: 1.5,
-          borderRadius: 6,
-          yAxisID: "y1",
           type: "line",
           tension: 0.4,
-          pointBackgroundColor: "#6366f1",
+          borderColor: "#818cf8",
+          backgroundColor: "rgba(129,140,248,0.12)",
+          pointBackgroundColor: "#818cf8",
           pointRadius: 4,
+          borderWidth: 2,
+          fill: true,
+          yAxisID: "y1",
         },
       ],
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      animation: { duration: 800, easing: "easeOutQuart" },
+      animation: { duration: 700, easing: "easeOutQuart" },
       plugins: {
-        legend: {
-          labels: { color: "#9ca3af", font: { family: "Inter", size: 12 } },
-        },
+        legend: { labels: { color: "#6b6b80", font: { family: "Inter", size: 11 }, boxWidth: 12 } },
         tooltip: {
-          backgroundColor: "#1c2030",
-          titleColor: "#e8eaf0",
-          bodyColor: "#9ca3af",
-          borderColor: "#252a3a",
+          backgroundColor: "#1c1c26",
+          titleColor: "#f0f0f8",
+          bodyColor: "#6b6b80",
+          borderColor: "rgba(255,255,255,0.07)",
           borderWidth: 1,
+          padding: 10,
         },
       },
       scales: {
-        x: {
-          ticks: { color: "#6b7280", font: { family: "Inter", size: 11 } },
-          grid:  { color: "rgba(255,255,255,0.04)" },
-        },
+        x: { ticks: { color: "#6b6b80", font: { family: "Inter", size: 10 } }, grid: { color: "rgba(255,255,255,0.03)" } },
         y: {
           position: "left",
-          ticks: { color: "#6b7280", font: { family: "Inter", size: 11 } },
-          grid:  { color: "rgba(255,255,255,0.04)" },
-          title: { display: true, text: "Calories", color: "#f59e0b", font: { size: 11 } },
+          ticks: { color: "#6b6b80", font: { family: "Inter", size: 10 } },
+          grid:  { color: "rgba(255,255,255,0.03)" },
+          title: { display: true, text: "kcal", color: "#f97316", font: { size: 10 } },
         },
         y1: {
           position: "right",
           grid: { drawOnChartArea: false },
-          ticks: { color: "#6b7280", font: { family: "Inter", size: 11 } },
-          title: { display: true, text: "Protein (g)", color: "#6366f1", font: { size: 11 } },
+          ticks: { color: "#6b6b80", font: { family: "Inter", size: 10 } },
+          title: { display: true, text: "protein", color: "#818cf8", font: { size: 10 } },
         },
       },
     },
   });
 }
 
-// ── View switching ────────────────────────────────────────────
-function showView(name) {
-  document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
-  document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+// ── Screen routing ────────────────────────────────────────────
+function showScreen(name) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
 
-  document.getElementById("view-" + name).classList.add("active");
-  document.querySelector(`[data-view="${name}"]`).classList.add("active");
+  document.getElementById("screen-" + name).classList.add("active");
+  document.querySelector(`.tab[data-screen="${name}"]`).classList.add("active");
 
-  if (name === "dashboard") renderDashboard();
-  if (name === "log")       { renderLog(); renderPresets("", "presetList"); }
-  if (name === "history")   renderWeekly();
-
-  // Close mobile sidebar on nav
-  closeSidebar();
+  // Re-render on switch
+  if (name === "home")   renderHome();
+  if (name === "log")    renderLogScreen();
+  if (name === "weekly") renderWeekly();
 }
 
-// ── Date picker ───────────────────────────────────────────────
-function setDate(str) {
-  currentDate = str;
-  document.getElementById("mobileDate").textContent = str;
+// ── Date sheet ────────────────────────────────────────────────
+function openDateSheet() {
+  document.getElementById("datePicker").value = currentDate;
+  document.getElementById("dateSheetBackdrop").classList.add("open");
+}
 
-  // Re-render whichever view is active
-  const active = document.querySelector(".view.active");
-  if (active) {
-    const name = active.id.replace("view-", "");
-    if (name === "dashboard") renderDashboard();
-    if (name === "log")       renderLog();
-    if (name === "history")   renderWeekly();
+function closeDateSheet() {
+  document.getElementById("dateSheetBackdrop").classList.remove("open");
+}
+
+function applyDate() {
+  const val = document.getElementById("datePicker").value;
+  if (val) currentDate = val;
+  closeDateSheet();
+  // Re-render active screen
+  const active = document.querySelector(".screen.active");
+  if (active) showScreen(active.id.replace("screen-", ""));
+}
+
+// ── PWA service worker registration ──────────────────────────
+function registerSW() {
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("./sw.js").catch(() => {});
   }
-}
-
-// ── Modal ─────────────────────────────────────────────────────
-function openModal() {
-  document.getElementById("modalBackdrop").classList.add("open");
-  renderPresets("", "modalPresetList");
-  document.getElementById("modalSearch").focus();
-}
-
-function closeModal() {
-  document.getElementById("modalBackdrop").classList.remove("open");
-  document.getElementById("modalSearch").value = "";
-}
-
-// ── Sidebar (mobile) ──────────────────────────────────────────
-function openSidebar() {
-  document.getElementById("sidebar").classList.add("open");
-  document.getElementById("sidebarOverlay").classList.add("open");
-}
-
-function closeSidebar() {
-  document.getElementById("sidebar").classList.remove("open");
-  document.getElementById("sidebarOverlay").classList.remove("open");
 }
 
 // ── Boot ──────────────────────────────────────────────────────
 function init() {
-  // Set date picker to today
-  const picker = document.getElementById("datePicker");
-  picker.value = currentDate;
-  document.getElementById("mobileDate").textContent = currentDate;
-
-  // Date picker change
-  picker.addEventListener("change", e => setDate(e.target.value));
-
-  // Nav buttons
-  document.querySelectorAll(".nav-btn").forEach(btn => {
-    btn.addEventListener("click", () => showView(btn.dataset.view));
+  // Tab bar navigation
+  document.querySelectorAll(".tab").forEach(btn => {
+    btn.addEventListener("click", () => showScreen(btn.dataset.screen));
   });
 
-  // Form submit
-  document.getElementById("foodForm").addEventListener("submit", handleFormSubmit);
+  // Category pills
+  document.querySelectorAll(".cat-pill").forEach(p => {
+    p.addEventListener("click", () => selectCat(p.dataset.cat));
+  });
+
+  // Form submit button
+  document.getElementById("submitBtn").addEventListener("click", handleSubmit);
 
   // Cancel edit
-  document.getElementById("cancelEditBtn").addEventListener("click", cancelEdit);
+  document.getElementById("cancelEditBtn").addEventListener("click", endEdit);
 
-  // Preset search on log view
-  document.getElementById("presetSearch").addEventListener("input", e => {
-    renderPresets(e.target.value, "presetList");
+  // Home quick-add → jump to log tab
+  document.getElementById("homeAddBtn").addEventListener("click", () => showScreen("log"));
+
+  // Preset search
+  document.getElementById("presetSearch").addEventListener("input", e => renderPresets(e.target.value));
+
+  // Date picker sheet
+  document.getElementById("dateTrigger").addEventListener("click", openDateSheet);
+  document.getElementById("dateConfirm").addEventListener("click", applyDate);
+  document.getElementById("dateSheetBackdrop").addEventListener("click", e => {
+    if (e.target === document.getElementById("dateSheetBackdrop")) closeDateSheet();
   });
 
-  // Quick-add modal
-  document.getElementById("quickAddBtn").addEventListener("click", openModal);
-  document.getElementById("modalClose").addEventListener("click", closeModal);
-  document.getElementById("modalBackdrop").addEventListener("click", e => {
-    if (e.target === document.getElementById("modalBackdrop")) closeModal();
-  });
-
-  // Modal search
-  document.getElementById("modalSearch").addEventListener("input", e => {
-    renderPresets(e.target.value, "modalPresetList");
-  });
-
-  // Mobile hamburger
-  document.getElementById("hamburger").addEventListener("click", openSidebar);
-  document.getElementById("sidebarOverlay").addEventListener("click", closeSidebar);
-
-  // Keyboard: Escape closes modal / sidebar
+  // Keyboard shortcuts for desktop
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape") { closeModal(); closeSidebar(); }
+    if (e.key === "Escape") closeDateSheet();
+    if (e.key === "Enter" && document.activeElement.closest("#entryForm")) handleSubmit();
   });
 
-  // Render default view
-  showView("dashboard");
+  registerSW();
+  showScreen("home");
 }
 
 document.addEventListener("DOMContentLoaded", init);
