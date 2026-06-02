@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CalTrack — Lean Bulk Dashboard</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ===================== SIDEBAR NAV ===================== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-icon">⚡</span>
+      <span class="logo-text">CalTrack</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <button class="nav-btn active" data-view="dashboard">
+        <span class="nav-icon">◈</span> Dashboard
+      </button>
+      <button class="nav-btn" data-view="log">
+        <span class="nav-icon">✚</span> Log Food
+      </button>
+      <button class="nav-btn" data-view="history">
+        <span class="nav-icon">◷</span> Weekly History
+      </button>
+    </nav>
+
+    <div class="sidebar-date-section">
+      <label class="sidebar-label">Viewing date</label>
+      <input type="date" id="datePicker" class="date-input" />
+    </div>
+
+    <div class="sidebar-goal-info">
+      <div class="goal-chip">
+        <span class="goal-chip-label">Cal goal</span>
+        <span class="goal-chip-value" id="sideGoalCal">3,300</span>
+      </div>
+      <div class="goal-chip">
+        <span class="goal-chip-label">Protein goal</span>
+        <span class="goal-chip-value" id="sideGoalPro">140g</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Mobile header -->
+  <header class="mobile-header">
+    <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+      <span></span><span></span><span></span>
+    </button>
+    <span class="mobile-logo">⚡ CalTrack</span>
+    <div class="mobile-date" id="mobileDate"></div>
+  </header>
+
+  <!-- Overlay for mobile sidebar -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- ===================== MAIN CONTENT ===================== -->
+  <main class="main-content">
+
+    <!-- ========== VIEW: DASHBOARD ========== -->
+    <section class="view active" id="view-dashboard">
+      <div class="view-header">
+        <div>
+          <h1 class="view-title">Daily Dashboard</h1>
+          <p class="view-subtitle" id="dashSubtitle">Loading…</p>
+        </div>
+        <button class="btn btn-primary" id="quickAddBtn">+ Quick Add</button>
+      </div>
+
+      <!-- Progress rings row -->
+      <div class="rings-row">
+        <!-- Calories ring -->
+        <div class="ring-card">
+          <div class="ring-wrapper">
+            <svg class="progress-ring" viewBox="0 0 120 120">
+              <circle class="ring-bg" cx="60" cy="60" r="50" />
+              <circle class="ring-fill" id="calRing" cx="60" cy="60" r="50"
+                stroke="#f59e0b" stroke-dasharray="314.16" stroke-dashoffset="314.16" />
+            </svg>
+            <div class="ring-center">
+              <span class="ring-value" id="calConsumed">0</span>
+              <span class="ring-unit">kcal</span>
+            </div>
+          </div>
+          <div class="ring-info">
+            <span class="ring-label">Calories</span>
+            <div class="ring-stats">
+              <span class="stat-item consumed">Consumed <strong id="calConsumedLabel">0</strong></span>
+              <span class="stat-item remaining">Remaining <strong id="calRemaining">3,300</strong></span>
+              <span class="stat-item goal">Goal <strong>3,300</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Protein ring -->
+        <div class="ring-card">
+          <div class="ring-wrapper">
+            <svg class="progress-ring" viewBox="0 0 120 120">
+              <circle class="ring-bg" cx="60" cy="60" r="50" />
+              <circle class="ring-fill" id="proRing" cx="60" cy="60" r="50"
+                stroke="#6366f1" stroke-dasharray="314.16" stroke-dashoffset="314.16" />
+            </svg>
+            <div class="ring-center">
+              <span class="ring-value" id="proConsumed">0</span>
+              <span class="ring-unit">g</span>
+            </div>
+          </div>
+          <div class="ring-info">
+            <span class="ring-label">Protein</span>
+            <div class="ring-stats">
+              <span class="stat-item consumed">Consumed <strong id="proConsumedLabel">0g</strong></span>
+              <span class="stat-item remaining">Remaining <strong id="proRemaining">140g</strong></span>
+              <span class="stat-item goal">Goal <strong>140g</strong></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Today's meals -->
+      <div class="section-header">
+        <h2 class="section-title">Today's Meals</h2>
+        <span class="meal-count-badge" id="mealCount">0 items</span>
+      </div>
+
+      <div class="meal-list" id="dashMealList">
+        <div class="empty-state" id="dashEmptyState">
+          <div class="empty-icon">🍽️</div>
+          <p>No meals logged yet.</p>
+          <p class="empty-sub">Head to <strong>Log Food</strong> to start tracking.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== VIEW: LOG FOOD ========== -->
+    <section class="view" id="view-log">
+      <div class="view-header">
+        <div>
+          <h1 class="view-title">Log Food</h1>
+          <p class="view-subtitle" id="logSubtitle">Pick a preset or enter custom food</p>
+        </div>
+      </div>
+
+      <div class="log-grid">
+        <!-- Preset search -->
+        <div class="card preset-card">
+          <h3 class="card-title">🍛 Food Presets</h3>
+          <input type="text" id="presetSearch" class="text-input" placeholder="Search South Indian foods…" />
+          <div class="preset-list" id="presetList"></div>
+        </div>
+
+        <!-- Custom entry form -->
+        <div class="card form-card">
+          <h3 class="card-title" id="formTitle">✏️ Custom Entry</h3>
+          <form id="foodForm" novalidate>
+            <input type="hidden" id="editId" />
+
+            <div class="form-group">
+              <label class="form-label">Food Name</label>
+              <input type="text" id="foodName" class="text-input" placeholder="e.g. Chicken Biryani" required />
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Calories (kcal)</label>
+                <input type="number" id="foodCal" class="text-input" placeholder="490" min="0" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Protein (g)</label>
+                <input type="number" id="foodPro" class="text-input" placeholder="32" min="0" step="0.1" required />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Category</label>
+              <select id="foodCat" class="text-input select-input">
+                <option value="Breakfast">Breakfast</option>
+                <option value="Lunch" selected>Lunch</option>
+                <option value="Dinner">Dinner</option>
+                <option value="Snack">Snack</option>
+                <option value="Drink">Drink</option>
+              </select>
+            </div>
+
+            <p class="form-error" id="formError"></p>
+
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary" id="submitBtn">Add Meal</button>
+              <button type="button" class="btn btn-ghost" id="cancelEditBtn" style="display:none">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Log for selected day -->
+      <div class="section-header" style="margin-top:2rem">
+        <h2 class="section-title">Logged for <span id="logDateLabel"></span></h2>
+      </div>
+      <div class="meal-list" id="logMealList">
+        <div class="empty-state" id="logEmptyState">
+          <div class="empty-icon">📋</div>
+          <p>Nothing logged yet for this day.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== VIEW: WEEKLY HISTORY ========== -->
+    <section class="view" id="view-history">
+      <div class="view-header">
+        <div>
+          <h1 class="view-title">Weekly History</h1>
+          <p class="view-subtitle">Last 7 days at a glance</p>
+        </div>
+      </div>
+
+      <!-- Weekly summary cards -->
+      <div class="weekly-cards" id="weeklyCards"></div>
+
+      <!-- Chart -->
+      <div class="card chart-card">
+        <h3 class="card-title">📊 Calories & Protein — Last 7 Days</h3>
+        <div class="chart-container">
+          <canvas id="weeklyChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========== QUICK-ADD MODAL ========== -->
+  <div class="modal-backdrop" id="modalBackdrop">
+    <div class="modal" id="quickAddModal">
+      <div class="modal-header">
+        <h3>Quick Add</h3>
+        <button class="modal-close" id="modalClose">✕</button>
+      </div>
+      <input type="text" id="modalSearch" class="text-input" placeholder="Search presets…" />
+      <div class="preset-list modal-preset-list" id="modalPresetList"></div>
+    </div>
+  </div>
+
+  <!-- Data & logic -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
