@@ -3,11 +3,21 @@
    Data constants live in data.js (loaded first).
    ============================================================ */
 
+// ── USDA FoodData Central API ─────────────────────────────────
+// Free public API — get your own key at https://fdc.nal.usda.gov/api-key-signup
+// DEMO_KEY works for personal/low-volume use (30 req/hr, 50/day)
+const USDA_KEY      = "DEMO_KEY";
+const USDA_BASE     = "https://api.nal.usda.gov/fdc/v1";
+const NUTRIENT_CAL  = 1008;   // Energy (kcal)
+const NUTRIENT_PRO  = 1003;   // Protein (g)
+
 // ── State ────────────────────────────────────────────────────
-let currentDate  = todayStr();
-let editingId    = null;
-let selectedCat  = "Breakfast";
-let weeklyChart  = null;
+let currentDate      = todayStr();
+let editingId        = null;
+let selectedCat      = "Breakfast";
+let weeklyChart      = null;
+let usdaDebounceTimer = null;
+let pendingUsdaFood  = null;   // food being confirmed in serving sheet
 
 // ── Utility ──────────────────────────────────────────────────
 function todayStr() {
@@ -156,6 +166,139 @@ function renderLogList() {
   } else {
     entries.forEach(e => list.appendChild(buildEntryCard(e)));
   }
+}
+
+// ── USDA API ─────────────────────────────────────────────────
+async function searchUSDA(query) {
+  if (!query.trim()) {
+    document.getElementById("usdaResults").innerHTML = "";
+    document.getElementById("usdaHint").textContent = "Powered by USDA FoodData Central";
+    return;
+  }
+
+  // Show spinner
+  const spinner = document.getElementById("usdaSpinner");
+  const hint    = document.getElementById("usdaHint");
+  const results = document.getElementById("usdaResults");
+  spinner.style.display = "block";
+  hint.textContent = "Searching…";
+  results.innerHTML = "";
+
+  try {
+    const url = `${USDA_BASE}/foods/search?query=${encodeURIComponent(query)}&pageSize=20&dataType=SR%20Legacy,Survey%20(FNDDS),Branded&api_key=${USDA_KEY}`;
+    const res  = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    spinner.style.display = "none";
+
+    const foods = (data.foods || []).filter(f => {
+      // Only include foods that have calorie data
+      return f.foodNutrients && f.foodNutrients.some(n => n.nutrientId === NUTRIENT_CAL && n.value > 0);
+    });
+
+    if (foods.length === 0) {
+      hint.textContent = "No results — try a different search term";
+      return;
+    }
+
+    hint.textContent = `${data.totalHits?.toLocaleString() ?? foods.length} foods found · showing top ${foods.length}`;
+    renderUSDAResults(foods);
+
+  } catch (err) {
+    spinner.style.display = "none";
+    if (err.message.includes("429") || err.message.includes("403")) {
+      hint.textContent = "⚠️ Rate limit hit — wait a moment and try again";
+    } else {
+      hint.textContent = "⚠️ Search failed — check your connection";
+    }
+    console.error("USDA search error:", err);
+  }
+}
+
+function getNutrientValue(foodNutrients, nutrientId) {
+  const n = foodNutrients?.find(n => n.nutrientId === nutrientId);
+  return n ? Math.round(n.value * 10) / 10 : 0;
+}
+
+function renderUSDAResults(foods) {
+  const container = document.getElementById("usdaResults");
+  container.innerHTML = "";
+
+  foods.forEach(food => {
+    const cal100 = getNutrientValue(food.foodNutrients, NUTRIENT_CAL);
+    const pro100 = getNutrientValue(food.foodNutrients, NUTRIENT_PRO);
+
+    // Clean up the description (USDA names can be long/uppercase)
+    const name = toTitleCase(food.description.split(",").slice(0, 2).join(", "));
+
+    const row = document.createElement("div");
+    row.className = "preset-row";
+    row.innerHTML = `
+      <div class="entry-dot" style="background:var(--cyan)"></div>
+      <span class="preset-row-name">${name}<span class="usda-badge">USDA</span></span>
+      <span class="preset-row-meta">${cal100} kcal · ${pro100}g <span style="font-size:.65rem;color:var(--muted2)">per 100g</span></span>
+      <span class="preset-add-icon">＋</span>
+    `;
+
+    row.addEventListener("click", () => openServingSheet({ name, cal100, pro100 }));
+    container.appendChild(row);
+  });
+}
+
+function toTitleCase(str) {
+  return str.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// ── Serving size sheet ────────────────────────────────────────
+function openServingSheet(food) {
+  pendingUsdaFood = food;
+  document.getElementById("servingFoodName").textContent = food.name;
+  document.getElementById("servingPer100").innerHTML =
+    `Per 100 g: <strong>${food.cal100} kcal · ${food.pro100}g protein</strong>`;
+  document.getElementById("servingGrams").value = 100;
+  updateServingPreview();
+  document.getElementById("servingSheetBackdrop").classList.add("open");
+  document.getElementById("servingGrams").focus();
+}
+
+function closeServingSheet() {
+  document.getElementById("servingSheetBackdrop").classList.remove("open");
+  pendingUsdaFood = null;
+}
+
+function updateServingPreview() {
+  if (!pendingUsdaFood) return;
+  const g   = parseFloat(document.getElementById("servingGrams").value) || 0;
+  const cal = Math.round((pendingUsdaFood.cal100 / 100) * g);
+  const pro = Math.round((pendingUsdaFood.pro100 / 100) * g * 10) / 10;
+  document.getElementById("servingCalPreview").textContent = `${cal} kcal`;
+  document.getElementById("servingProPreview").textContent = `${pro}g protein`;
+}
+
+function confirmServing() {
+  if (!pendingUsdaFood) return;
+  const g   = parseFloat(document.getElementById("servingGrams").value) || 100;
+  const cal = Math.round((pendingUsdaFood.cal100 / 100) * g);
+  const pro = Math.round((pendingUsdaFood.pro100 / 100) * g * 10) / 10;
+
+  // Fill the entry form
+  document.getElementById("foodName").value = `${pendingUsdaFood.name} (${g}g)`;
+  document.getElementById("foodCal").value  = cal;
+  document.getElementById("foodPro").value  = pro;
+
+  closeServingSheet();
+  document.getElementById("entryForm").scrollIntoView({ behavior: "smooth" });
+}
+
+// ── Log screen tabs ───────────────────────────────────────────
+function switchDbTab(tabName) {
+  document.querySelectorAll(".db-tab").forEach(t =>
+    t.classList.toggle("active", t.dataset.tab === tabName)
+  );
+  document.querySelectorAll(".db-panel").forEach(p =>
+    p.classList.toggle("active", p.id === "panel-" + tabName)
+  );
 }
 
 // ── Render presets ────────────────────────────────────────────
@@ -445,6 +588,32 @@ function init() {
   // Preset search
   document.getElementById("presetSearch").addEventListener("input", e => renderPresets(e.target.value));
 
+  // USDA live search with 400ms debounce
+  document.getElementById("usdaSearch").addEventListener("input", e => {
+    clearTimeout(usdaDebounceTimer);
+    const q = e.target.value.trim();
+    if (!q) {
+      document.getElementById("usdaResults").innerHTML = "";
+      document.getElementById("usdaHint").textContent = "Powered by USDA FoodData Central";
+      document.getElementById("usdaSpinner").style.display = "none";
+      return;
+    }
+    document.getElementById("usdaSpinner").style.display = "block";
+    usdaDebounceTimer = setTimeout(() => searchUSDA(q), 400);
+  });
+
+  // Database tab switching
+  document.querySelectorAll(".db-tab").forEach(btn => {
+    btn.addEventListener("click", () => switchDbTab(btn.dataset.tab));
+  });
+
+  // Serving sheet
+  document.getElementById("servingGrams").addEventListener("input", updateServingPreview);
+  document.getElementById("servingConfirm").addEventListener("click", confirmServing);
+  document.getElementById("servingSheetBackdrop").addEventListener("click", e => {
+    if (e.target === document.getElementById("servingSheetBackdrop")) closeServingSheet();
+  });
+
   // Date picker sheet
   document.getElementById("dateTrigger").addEventListener("click", openDateSheet);
   document.getElementById("dateConfirm").addEventListener("click", applyDate);
@@ -454,8 +623,9 @@ function init() {
 
   // Keyboard shortcuts for desktop
   document.addEventListener("keydown", e => {
-    if (e.key === "Escape") closeDateSheet();
+    if (e.key === "Escape") { closeDateSheet(); closeServingSheet(); }
     if (e.key === "Enter" && document.activeElement.closest("#entryForm")) handleSubmit();
+    if (e.key === "Enter" && document.activeElement.id === "servingGrams") confirmServing();
   });
 
   registerSW();

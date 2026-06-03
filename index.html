@@ -157,12 +157,28 @@
         </div>
       </div>
 
-      <!-- Presets -->
-      <div class="section-hdr" style="margin-top:1.25rem">
-        <span class="section-title">South Indian Presets</span>
+      <!-- ── Database search tabs ── -->
+      <div class="db-tabs" style="margin-top:1.25rem">
+        <button class="db-tab active" data-tab="usda">🌐 USDA Database</button>
+        <button class="db-tab" data-tab="presets">🍛 South Indian</button>
       </div>
-      <input type="text" id="presetSearch" class="field search-field" placeholder="Search presets…" />
-      <div class="entry-list preset-grid" id="presetList"></div>
+
+      <!-- USDA search panel -->
+      <div class="db-panel active" id="panel-usda">
+        <div class="usda-search-wrap">
+          <input type="text" id="usdaSearch" class="field search-field"
+            placeholder="Search millions of foods… (e.g. rice, chicken)" autocomplete="off" />
+          <span class="usda-spinner" id="usdaSpinner" style="display:none">⏳</span>
+        </div>
+        <p class="usda-hint" id="usdaHint">Powered by USDA FoodData Central</p>
+        <div class="entry-list preset-grid" id="usdaResults"></div>
+      </div>
+
+      <!-- South Indian presets panel -->
+      <div class="db-panel" id="panel-presets">
+        <input type="text" id="presetSearch" class="field search-field" placeholder="Search presets…" />
+        <div class="entry-list preset-grid" id="presetList"></div>
+      </div>
 
       <!-- Logged today -->
       <div class="section-hdr" style="margin-top:1.5rem">
@@ -250,6 +266,30 @@
       <p class="sheet-title">Select Date</p>
       <input type="date" id="datePicker" class="field date-field" />
       <button class="btn-main" id="dateConfirm">Confirm</button>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       SERVING SIZE SHEET (pops up after USDA tap)
+  ══════════════════════════════════════════════ -->
+  <div class="sheet-backdrop" id="servingSheetBackdrop">
+    <div class="bottom-sheet" id="servingSheet">
+      <div class="sheet-handle"></div>
+      <p class="sheet-title" id="servingFoodName">Food</p>
+      <p class="serving-per100">Per 100 g: <strong id="servingPer100"></strong></p>
+
+      <div class="serving-row">
+        <div style="flex:1">
+          <label class="form-card-label">Serving size (g)</label>
+          <input type="number" id="servingGrams" class="field" value="100" min="1" />
+        </div>
+        <div class="serving-preview">
+          <span class="serving-preview-cal" id="servingCalPreview">— kcal</span>
+          <span class="serving-preview-pro" id="servingProPreview">— g protein</span>
+        </div>
+      </div>
+
+      <button class="btn-main" id="servingConfirm">Fill Form with This</button>
     </div>
   </div>
 

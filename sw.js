@@ -27,6 +27,12 @@ self.addEventListener("activate", e => {
 });
 
 self.addEventListener("fetch", e => {
+  // Always go network-first for USDA API calls (live data, never cache)
+  if (e.request.url.includes("api.nal.usda.gov")) {
+    e.respondWith(fetch(e.request));
+    return;
+  }
+  // App shell: cache-first
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request))
   );
